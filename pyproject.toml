@@ -1,0 +1,8 @@
+[project]
+name = "personal-memory-engine"
+version = "0.1.0"
+description = "Local-first deterministic memory layer for an AI assistant"
+requires-python = ">=3.11"
+
+[tool.unittest]
+start-directory = "tests"

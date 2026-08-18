@@ -1,0 +1,24 @@
+# Personal-memory databases and SQLite WAL sidecar files
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Local secrets and environment configuration
+.env
+.env.*
+!.env.example
+
+# Python build and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+build/
+dist/
+*.egg-info/

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Memory Engine"
+  short_description: "Manage durable structured personal memory"
+  default_prompt: "Use $ai-memory-engine to store and retrieve my personal facts deterministically."
