@@ -16,4 +16,6 @@ memory.answer("What food does Tommy eat?")
 
 Run the test suite with `python -m unittest discover -s tests -v` and benchmarks with `python benchmarks/benchmark.py`.
 
+For lifecycle changes, use `correct()` to preserve an old fact as history, `archive()` to hide a fact while retaining it, and `forget()` only after explicit user confirmation to permanently remove one fact and its observations.
+
 See [docs/architecture.md](docs/architecture.md) for the architecture, trade-offs, data model, lifecycle, and complexity analysis. The governing decision, implementation map, and future-agent handoff are in [ADR 0001](docs/adr/0001-local-deterministic-memory.md).

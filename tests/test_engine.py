@@ -59,6 +59,26 @@ class MemoryEngineTests(unittest.TestCase):
         self.assertEqual(self.m.set_lifecycle(fact.id, "validated").status, "validated")
         self.assertEqual(self.m.set_lifecycle(fact.id, "archived").status, "archived")
 
+    def test_correct_replaces_current_fact(self):
+        self.m.remember(self.me, "employed_by", "Company A")
+        corrected = self.m.correct(self.me, "employed_by", "Company B")
+        self.assertEqual(corrected.value, "Company B")
+        self.assertEqual(self.m.lookup("me", "employed_by")[0].value, "Company B")
+
+    def test_archive_hides_fact_but_preserves_history(self):
+        fact = self.m.remember(self.tommy, "favorite_toy", "Ball")
+        archived = self.m.archive(fact.id)
+        self.assertEqual(archived.status, "archived")
+        self.assertEqual(self.m.lookup("Tommy", "favorite_toy"), [])
+        self.assertEqual(self.m.history("Tommy", "favorite_toy")[0].status, "archived")
+
+    def test_forget_permanently_removes_exact_fact_and_observations(self):
+        fact = self.m.remember(self.tommy, "passport_number", "secret")
+        self.m.remember(self.tommy, "passport_number", "secret")
+        self.m.forget(fact.id)
+        self.assertEqual(self.m.history("Tommy", "passport_number"), [])
+        self.assertEqual(self.m.store.connection.execute("SELECT count(*) FROM observations WHERE fact_id=?", (fact.id,)).fetchone()[0], 0)
+
     def test_index_rebuild_and_persistence(self):
         handle, path = tempfile.mkstemp(); os.close(handle)
         try:

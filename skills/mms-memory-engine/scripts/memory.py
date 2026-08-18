@@ -38,11 +38,14 @@ def main():
     ep=sub.add_parser("entity"); es=ep.add_subparsers(dest="action",required=True)
     ec=es.add_parser("create"); ec.add_argument("--name",required=True); ec.add_argument("--type",required=True); ec.add_argument("--alias",action="append",default=[])
     er=es.add_parser("resolve"); er.add_argument("--name",required=True); er.add_argument("--type")
-    r=sub.add_parser("remember"); r.add_argument("--subject",required=True); r.add_argument("--predicate",required=True); r.add_argument("--value",required=True); r.add_argument("--context",default="default"); r.add_argument("--confidence",type=float,default=1); r.add_argument("--source",default="user"); r.add_argument("--at")
+    for command in ("remember", "correct"):
+        r=sub.add_parser(command); r.add_argument("--subject",required=True); r.add_argument("--predicate",required=True); r.add_argument("--value",required=True); r.add_argument("--context",default="default"); r.add_argument("--confidence",type=float,default=1); r.add_argument("--source",default="user"); r.add_argument("--at")
     for command in ("lookup","history","at"):
         q=sub.add_parser(command); q.add_argument("--subject",required=True); q.add_argument("--predicate",required=True)
         if command=="at": q.add_argument("--time",required=True)
     c=sub.add_parser("changes"); c.add_argument("--from",dest="start",required=True); c.add_argument("--to",dest="end",required=True)
+    archive=sub.add_parser("archive"); archive.add_argument("--fact-id",required=True); archive.add_argument("--at"); archive.add_argument("--confirm",choices=["ARCHIVE"],required=True)
+    forget=sub.add_parser("forget"); forget.add_argument("--fact-id",required=True); forget.add_argument("--confirm",choices=["DELETE"],required=True)
     a=p.parse_args(); con=db(a.db)
     try:
         if a.cmd=="entity" and a.action=="create":
@@ -53,7 +56,7 @@ def main():
                 for alias in set([a.name,*a.alias]): con.execute("INSERT OR IGNORE INTO aliases VALUES(?,?)",(norm(alias),row['id']))
             emit(dict(row)); return
         if a.cmd=="entity": emit(dict(entity(con,a.name,a.type))); return
-        if a.cmd=="remember":
+        if a.cmd in ("remember", "correct"):
             subject=entity(con,a.subject); value=parse_value(a.value); packed=json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False); stamp=a.at or now()
             con.execute("BEGIN IMMEDIATE")
             old=con.execute("SELECT * FROM facts WHERE subject_id=? AND predicate=? AND context_key=? AND status='current'",(subject['id'],a.predicate,a.context)).fetchall()
@@ -62,14 +65,25 @@ def main():
                 con.execute("INSERT INTO observations VALUES(?,?,?,?,?)",(str(uuid.uuid4()),same['id'],a.source,stamp,a.confidence)); con.execute("COMMIT"); emit(show(con,same,"duplicate observation")); return
             for x in old: con.execute("UPDATE facts SET status='superseded',valid_to=? WHERE id=?",(stamp,x['id']))
             fid=str(uuid.uuid4()); con.execute("INSERT INTO facts VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(fid,subject['id'],a.predicate,packed,a.context,"current",a.confidence,a.source,stamp,stamp,None,old[0]['id'] if old else None)); con.execute("INSERT INTO observations VALUES(?,?,?,?,?)",(str(uuid.uuid4()),fid,a.source,stamp,a.confidence)); con.execute("COMMIT")
-            emit(show(con,con.execute("SELECT * FROM facts WHERE id=?",(fid,)).fetchone(),"new current assertion")); return
+            why="correction superseded prior current fact" if a.cmd=="correct" else "new current assertion"
+            emit(show(con,con.execute("SELECT * FROM facts WHERE id=?",(fid,)).fetchone(),why)); return
         if a.cmd in ("lookup","history","at"):
             subject=entity(con,a.subject)
             if a.cmd=="lookup": rows=con.execute("SELECT * FROM facts WHERE subject_id=? AND predicate=? AND status='current' ORDER BY valid_from",(subject['id'],a.predicate)).fetchall(); why="current-slot index"
             elif a.cmd=="history": rows=con.execute("SELECT * FROM facts WHERE subject_id=? AND predicate=? ORDER BY valid_from",(subject['id'],a.predicate)).fetchall(); why="entity history index"
             else: rows=con.execute("SELECT * FROM facts WHERE subject_id=? AND predicate=? AND valid_from<=? AND (valid_to IS NULL OR valid_to>?) AND status IN ('current','superseded') ORDER BY valid_from",(subject['id'],a.predicate,a.time,a.time)).fetchall(); why="temporal index"
             emit([show(con,x,why) for x in rows]); return
-        rows=con.execute("SELECT * FROM facts WHERE observed_at>=? AND observed_at<? ORDER BY observed_at",(a.start,a.end)).fetchall(); emit([show(con,x,"observation time index") for x in rows])
+        if a.cmd=="archive":
+            con.execute("BEGIN IMMEDIATE"); row=con.execute("SELECT * FROM facts WHERE id=?",(a.fact_id,)).fetchone()
+            if not row: raise ValueError(f"unknown fact {a.fact_id}")
+            con.execute("UPDATE facts SET status='archived',valid_to=COALESCE(valid_to,?) WHERE id=?",(a.at or now(),a.fact_id)); con.execute("COMMIT")
+            emit(show(con,con.execute("SELECT * FROM facts WHERE id=?",(a.fact_id,)).fetchone(),"explicitly archived")); return
+        if a.cmd=="forget":
+            con.execute("BEGIN IMMEDIATE"); row=con.execute("SELECT id FROM facts WHERE id=?",(a.fact_id,)).fetchone()
+            if not row: raise ValueError(f"unknown fact {a.fact_id}")
+            con.execute("UPDATE facts SET supersedes_id=NULL WHERE supersedes_id=?",(a.fact_id,)); con.execute("DELETE FROM observations WHERE fact_id=?",(a.fact_id,)); con.execute("DELETE FROM facts WHERE id=?",(a.fact_id,)); con.execute("COMMIT")
+            emit({"deleted_fact_id":a.fact_id,"status":"permanently_deleted"}); return
+        rows=con.execute("SELECT * FROM facts WHERE observed_at>=? AND observed_at<? ORDER BY observed_at",(a.start,a.end)); emit([show(con,x,"observation time index") for x in rows])
     except Exception as exc:
         if con.in_transaction: con.execute("ROLLBACK")
         print(json.dumps({"error":str(exc)}),file=sys.stderr); sys.exit(2)

@@ -1,9 +1,9 @@
 ---
-name: ai-memory-engine
+name: mms-memory-engine
 description: Store, update, and retrieve durable structured personal facts using a local SQLite memory database. Use when an agent needs to remember a user's entities, preferences, relationships, possessions, employment, addresses, dates, or historical changes across sessions; answer factual questions from that memory; or inspect/repair deterministic personal-memory records. Do not use for note taking, document search, or broad semantic/RAG retrieval.
 ---
 
-# AI Memory Engine
+# MMS Memory Engine
 
 Use the bundled `scripts/memory.py` runtime. Keep the database local, defaulting to `~/.hermes/memory/personal-memory.db` for Hermes. Treat memory writes as user-data changes: only write facts the user stated, confirmed, or explicitly asked to save. Never infer sensitive facts or silently resolve an ambiguous entity.
 
@@ -20,7 +20,7 @@ Set a database path once per session:
 
 ```sh
 DB="$HOME/.hermes/memory/personal-memory.db"
-MEMORY="python3 /path/to/ai-memory-engine/scripts/memory.py --db $DB"
+MEMORY="python3 /path/to/mms-memory-engine/scripts/memory.py --db $DB"
 ```
 
 Create or find entities:
@@ -47,6 +47,10 @@ $MEMORY at --subject me --predicate address --time 2026-01-15T00:00:00+00:00
 $MEMORY changes --from 2026-01-01T00:00:00+00:00 --to 2026-07-01T00:00:00+00:00
 ```
 
+## Lifecycle operations
+
+Use `/mms-correct` to update a value while retaining history. Use `/mms-archive` to hide one fact from ordinary retrieval while retaining it. Use `/mms-forget` only for a confirmed permanent deletion. Both archive and forget require the user to confirm the exact fact ID after seeing the fact.
+
 The output is JSON. Do not pass the whole database or unrelated history into model context. Use a precise query and formulate the answer from its returned records.
 
 ## Rules
@@ -55,4 +59,5 @@ The output is JSON. Do not pass the whole database or unrelated history into mod
 - Do not store credentials, API keys, financial account numbers, government-ID numbers, health details, or other sensitive data without an explicit user request.
 - Prefer source `user`; retain a source and confidence for all writes.
 - Correct facts by writing the corrected value into the same slot. Do not delete historical facts to make an answer look cleaner.
+- Never perform archive or permanent deletion from an inferred request; first display the exact fact and require the matching `ARCHIVE <fact-id>` or `DELETE <fact-id>` reply.
 - To understand data layout, lifecycle, indexes, and error behavior, read [references/model.md](references/model.md).

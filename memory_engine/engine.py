@@ -88,6 +88,29 @@ class MemoryEngine:
             db.execute("UPDATE facts SET status=? WHERE id=?", (status, fact_id))
         return self._fetch(fact_id, f"lifecycle changed to {status}")
 
+    def archive(self, fact_id: str, *, archived_at: datetime | None = None) -> RetrievedFact:
+        """Hide a fact from normal retrieval while preserving it as historical evidence."""
+        stamp = _iso(archived_at)
+        with self.store.transaction() as db:
+            row = db.execute("SELECT * FROM facts WHERE id=?", (fact_id,)).fetchone()
+            if not row: raise ValueError(f"unknown fact {fact_id}")
+            db.execute("UPDATE facts SET status='archived', valid_to=COALESCE(valid_to, ?) WHERE id=?", (stamp, fact_id))
+        return self._fetch(fact_id, "explicitly archived")
+
+    def forget(self, fact_id: str) -> None:
+        """Permanently remove one fact and its observations. The caller must obtain user confirmation."""
+        with self.store.transaction() as db:
+            row = db.execute("SELECT id FROM facts WHERE id=?", (fact_id,)).fetchone()
+            if not row: raise ValueError(f"unknown fact {fact_id}")
+            # Keep later historical records valid if their predecessor is removed.
+            db.execute("UPDATE facts SET supersedes_id=NULL WHERE supersedes_id=?", (fact_id,))
+            db.execute("DELETE FROM observations WHERE fact_id=?", (fact_id,))
+            db.execute("DELETE FROM facts WHERE id=?", (fact_id,))
+
+    def correct(self, subject: str | Entity, predicate: str, value: Any, **kwargs) -> RetrievedFact:
+        """Semantic alias for remember: replace the current fact in the same logical slot."""
+        return self.remember(subject, predicate, value, **kwargs)
+
     def lookup(self, subject: str | Entity, predicate: str, *, current: bool = True, at: datetime | None = None) -> list[RetrievedFact]:
         entity = subject if isinstance(subject, Entity) else self.entities.resolve(subject)
         if at:

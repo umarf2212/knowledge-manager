@@ -14,11 +14,11 @@ Facts evolve: an employer, address, diet, preference, or relationship may change
 
 Use a local SQLite database as the authoritative fact store. Model the world as stable entities plus time-bounded facts. Resolve aliases deterministically before lookup; retrieve by entity/predicate/index; use an LLM only to propose a typed write/query or to phrase a result.
 
-Keep old facts. A changed fact in the same logical slot—`subject + predicate + context_key`—supersedes the previous `current` fact in one transaction and closes its validity interval. A repeated assertion adds an observation rather than a duplicate fact.
+Keep old facts. A changed fact in the same logical slot—`subject + predicate + context_key`—supersedes the previous `current` fact in one transaction and closes its validity interval. A repeated assertion adds an observation rather than a duplicate fact. Archival hides a fact without deleting it; permanent forgetting removes one exact fact and its observations only after explicit confirmation.
 
 ```mermaid
 flowchart TB
-  A["/remember: user statement"] --> B["Agent extracts proposed\nsubject, predicate, value, context"]
+  A["/mms-remember: user statement"] --> B["Agent extracts proposed\nsubject, predicate, value, context"]
   B --> C{"Unambiguous\nentity?"}
   C -- "no" --> D["Ask user to clarify\nor create entity"]
   C -- "yes" --> E["SQLite transaction"]
@@ -26,7 +26,7 @@ flowchart TB
   E --> G["facts: current / superseded"]
   E --> H["observations: source evidence"]
 
-  I["/recall: question"] --> J["Agent forms narrow query plan"]
+  I["/mms-recall: question"] --> J["Agent forms narrow query plan"]
   J --> K["Alias + entity resolution"]
   K --> L["Indexed fact / history / time query"]
   L --> M["Small RetrievedFact payload\nwith provenance"]
@@ -69,8 +69,8 @@ flowchart TB
 | Ingest, lifecycle, retrieval, rule planner | `MemoryEngine` | `memory_engine/engine.py` |
 | Optional type/predicate vocabulary | `Ontology` | `memory_engine/ontology.py` |
 | Tests and benchmark | unittest / stdlib benchmark | `tests/`, `benchmarks/` |
-| Hermes runtime | Standalone CLI used by skills | `skills/ai-memory-engine/scripts/memory.py` |
-| Hermes entry points | `/remember`, `/recall` instructions | `skills/remember/`, `skills/recall/` |
+| Hermes runtime | Standalone CLI used by skills | `skills/mms-memory-engine/scripts/memory.py` |
+| Hermes entry points | `/mms-remember`, `/mms-recall`, `/mms-correct`, `/mms-archive`, `/mms-forget` instructions | `skills/mms-*/` |
 
 ## Future-agent handoff
 
@@ -89,12 +89,13 @@ python3 benchmarks/benchmark.py
 4. A duplicate assertion must not create another current fact.
 5. Retrieval output must retain source, confidence, timestamps, status, and a reason for matching.
 6. Keep the SQLite schema migration-friendly and make export/import possible before any incompatible change.
+7. Treat archive and forget as separate operations: archive is reversible history retention; forget is confirmation-gated permanent removal of one displayed fact.
 
 ### Known gap: two runtimes
 
-`memory_engine/` is the richer reference implementation. The Hermes CLI at `skills/ai-memory-engine/scripts/memory.py` is intentionally standalone and therefore a smaller duplicate implementation. It currently lacks object-entity relationship edges, tags, explicit lifecycle transitions, raw-text observations, ontology support, robust alias-collision rejection, and the richer `answer()` planner.
+`memory_engine/` is the richer reference implementation. The Hermes CLI at `skills/mms-memory-engine/scripts/memory.py` is intentionally standalone and therefore a smaller duplicate implementation. It currently lacks object-entity relationship edges, tags, raw-text observations, ontology support, proactive alias-collision rejection at write time, and the richer `answer()` planner.
 
-Do not improve one runtime and assume the other inherits the change. The preferred next refactor is to package `memory_engine` for installation with the skill or generate the CLI from shared code, then add parity tests. Until then, treat the standalone Hermes runtime as the production path used by `/remember` and `/recall`.
+Do not improve one runtime and assume the other inherits the change. The preferred next refactor is to package `memory_engine` for installation with the skill or generate the CLI from shared code, then add parity tests. Until then, treat the standalone Hermes runtime as the production path used by `/mms-remember` and `/mms-recall`.
 
 ### Prioritized improvement path
 
