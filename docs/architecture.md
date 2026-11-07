@@ -14,6 +14,8 @@ flowchart LR
   P --> L["LLM only formulates response"]
 ```
 
+See the [shared-runtime architecture preview](architecture-diagrams.md) for the design with a common API and CLI package and optional local search.
+
 ## Candidate architectures
 
 | Approach | Strengths | Why not selected |

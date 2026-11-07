@@ -19,3 +19,11 @@ Run the test suite with `python -m unittest discover -s tests -v` and benchmarks
 For lifecycle changes, use `correct()` to preserve an old fact as history, `archive()` to hide a fact while retaining it, and `forget()` only after explicit user confirmation to permanently remove one fact and its observations.
 
 See [docs/architecture.md](docs/architecture.md) for the architecture, trade-offs, data model, lifecycle, and complexity analysis. The governing decision, implementation map, and future-agent handoff are in [ADR 0001](docs/adr/0001-local-deterministic-memory.md).
+
+## Architecture preview
+
+The diagrams preview a shared Python runtime for the API and MMS skills, with SQLite as the source of truth and optional local search. This branch currently ships the original split runtime.
+
+[Architecture walkthrough and request flows](docs/architecture-diagrams.md)
+
+[![Shared-runtime architecture preview](docs/assets/architecture-system.svg)](docs/architecture-diagrams.md)

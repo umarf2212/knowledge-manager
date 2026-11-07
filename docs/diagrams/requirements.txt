@@ -1,0 +1,2 @@
+# Documentation authoring only; not a memory-engine runtime dependency.
+diagrams==0.25.1
